@@ -35,3 +35,8 @@ sed -i 's/dnsmasq/dnsmasq-full/g' include/target.mk
 
 # 3. 设置默认 IP（可选，如果想改默认后台地址，把下面 192.168.1.1 改掉）
 sed -i 's/192.168.1.1/192.168.0.1/g' package/base-files/files/bin/config_generate
+
+# 在 diy-part2.sh 末尾添加
+sed -i '/wpad/d' .config
+sed -i '/hostapd/d' .config
+sed -i '/kmod-ath/d' .config
