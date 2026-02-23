@@ -34,4 +34,4 @@ git clone --depth=1 -b master https://github.com/vernesong/OpenClash.git package
 sed -i 's/dnsmasq/dnsmasq-full/g' include/target.mk
 
 # 3. 设置默认 IP（可选，如果想改默认后台地址，把下面 192.168.1.1 改掉）
-# sed -i 's/192.168.1.1/192.168.0.1/g' package/base-files/files/bin/config_generate
+sed -i 's/192.168.1.1/192.168.0.1/g' package/base-files/files/bin/config_generate
