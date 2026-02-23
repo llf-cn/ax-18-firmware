@@ -14,5 +14,12 @@
 #sed -i 's/^#\(.*helloworld\)/\1/' feeds.conf.default
 
 # Add a feed source
-echo 'src-git helloworld https://github.com/fw876/helloworld' >>feeds.conf.default
-#echo 'src-git passwall https://github.com/xiaorouji/openwrt-passwall' >>feeds.conf.default
+#!/bin/bash
+
+# 1. 添加 OpenClash 源码
+rm -rf feeds/luci/applications/luci-app-openclash
+git clone --depth=1 -b master https://github.com/vernesong/OpenClash.git package/luci-app-openclash
+
+# 2. 强制修正 IPv6 依赖
+# 确保 dnsmasq 被替换为 dnsmasq-full 以支持完整的 IPv6 和 OpenClash 转发
+sed -i 's/dnsmasq/dnsmasq-full/g' include/target.mk
