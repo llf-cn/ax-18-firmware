@@ -36,18 +36,14 @@ jobs:
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
         sudo docker image prune --all --force
         sudo -E apt-get -qq update
-        sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
+        sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libncurses5-dev libtool liblzo2-dev libssl-dev libxml2-dev libz-dev libzstd-dev patch pkg-config python3 python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
-        sudo timedatectl set-timezone "$TZ"
-        sudo mkdir -p /workdir
-        sudo chown $USER:$GROUPS /workdir
 
     - name: Clone source code
-      working-directory: /workdir
       run: |
+        df -hT $PWD
         git clone $REPO_URL -b $REPO_BRANCH openwrt
-        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
     - name: Load custom feeds
       run: |
@@ -56,8 +52,20 @@ jobs:
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P1_SH
 
-    - name: Update/Install feeds
-      run: cd openwrt && ./scripts/feeds update -a && ./scripts/feeds install -a
+    - name: Update feeds
+      run: cd openwrt && ./scripts/feeds update -a
+
+    - name: Install feeds
+      run: cd openwrt && ./scripts/feeds install -a
+
+    # 优化点 1：增加编译缓存，大幅提升二次编译速度
+    - name: Cache
+      uses: actions/cache@v3
+      with:
+        path: openwrt/staging_dir/host
+        key: ${{ runner.os }}-openwrt-cache-${{ hashFiles('.config') }}
+        restore-keys: |
+          ${{ runner.os }}-openwrt-cache-
 
     - name: Load custom configuration
       run: |
@@ -71,12 +79,25 @@ jobs:
       run: |
         cd openwrt
         make defconfig
-        make download -j8
+        
+        # 优化点 2：在 defconfig 之后，强制再次抹除无线残留依赖
+        # 确保 wifi-meshmgr 和 iwinfo 不会被默认模板拉回
+        sed -i 's/CONFIG_PACKAGE_kmod-qca-nss-drv-wifi-meshmgr=y/CONFIG_PACKAGE_kmod-qca-nss-drv-wifi-meshmgr=n/g' .config
+        sed -i 's/CONFIG_PACKAGE_rpcd-mod-iwinfo=y/CONFIG_PACKAGE_rpcd-mod-iwinfo=n/g' .config
+        sed -i 's/CONFIG_PACKAGE_libiwinfo=y/CONFIG_PACKAGE_libiwinfo=n/g' .config
+        
+        # 再次执行确认
+        make defconfig
+        
+        make download -j8 || make download -j8
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
 
     - name: Compile the firmware
       id: compile
       run: |
         cd openwrt
+        echo -e "$(nproc) thread compile"
         make -j$(nproc) || make -j1 V=s
         echo "status=success" >> $GITHUB_OUTPUT
 
@@ -93,10 +114,11 @@ jobs:
       id: tag
       if: steps.organize.outputs.status == 'success' && !cancelled()
       run: |
-        echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
+        echo "release_tag=$(date +"%Y.%m.%d-%H%M")-CMIOT-AX18" >> $GITHUB_OUTPUT
         echo "🚀 CMIOT-AX18 纯有线高性能固件" >> release.txt
-        echo "NSS加速: 11.4 稳定版" >> release.txt
-        echo "默认后台: 192.168.0.1" >> release.txt
+        echo "✅ 已彻底移除无线驱动与所有 WiFi 残留菜单" >> release.txt
+        echo "⚡ NSS 加速版本: 11.4 稳定版" >> release.txt
+        echo "🏠 默认后台: 192.168.0.1" >> release.txt
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: Upload firmware to release
