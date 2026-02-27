@@ -15,3 +15,6 @@ sed -i 's/dnsmasq/dnsmasq-full/g' include/target.mk
 sed -i '/wpad/d' .config
 sed -i '/hostapd/d' .config
 sed -i '/kmod-ath/d' .config
+
+# 5. 时区配置（添加到 diy-part2.sh）
+sed -i 's/CONFIG_TIME_ZONE="UTC"/CONFIG_TIME_ZONE="Asia\/Shanghai"/g' .config
